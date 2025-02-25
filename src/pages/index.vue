@@ -46,7 +46,7 @@
       </v-stepper-window-item>
 
       <v-stepper-window-item :value="isStammkundenMode ? '2' : '1'">
-        <appointment-type @set-loading="setLoading"/>
+        <appointment-type @set-loading="setLoading" @validate-step="validateCurrentStep"/>
       </v-stepper-window-item>
 
       <v-stepper-window-item :value="isStammkundenMode ? '3' : '2'">
@@ -61,7 +61,7 @@
       </v-stepper-window-item>
 
       <v-stepper-window-item :value="isStammkundenMode ? '4' : '3'">
-        <final />
+        <final :is-stammkunden-mode="isStammkundenMode"/>
       </v-stepper-window-item>
     </v-stepper-window>
     <v-stepper-actions
@@ -112,6 +112,7 @@ onMounted(() => {
 });
 
 const {
+  isStammkundenMode,
   steps,
   stepOneValid,
   stepTwoValid,
@@ -128,9 +129,11 @@ const {
   selectedDate,
   raumNr,
   appointmentTypeNr,
-  patNr
+  svnrLogin,
+  svnr,
+  patNr,
+  appointmentId
 } = storeToRefs(useAppStore());
-const isStammkundenMode = ref(false);
 const stammpatientForm = ref<InstanceType<typeof Stammpatient>>();
 const nextBtnLoading = ref(false);
 const viewPortWidth = ref(window.innerWidth);
@@ -163,7 +166,6 @@ const setLoading = (loading: boolean) => {
 const validateCurrentStep = async () => {
   if (isLastStep.value){
     //window.location.href = `https://www.zahnarzt-eferding.at/bitte-bestaetigen-sie-ihren-termin/?vn=${name.value}&nn=${lastName.value}&tel=${telNr.value}&email=${emailAddress.value}&notice=${notice.value}&time=${selectedTime.value}&date=${selectedDate.value}&room=${raumNr.value}&type=${appointmentTypeNr.value}&geburtsdatum=${birthday.value}&patnr=${patNr.value}`;
-    console.log(selectedTime.value);
     nextBtnLoading.value = true;
     axios.post("https://www.zahnarzt-eferding.at/wp-admin/admin-ajax.php",
       {
@@ -178,14 +180,14 @@ const validateCurrentStep = async () => {
         'date': selectedDate.value,
         'type': raumNr.value,
         'geburtsdatum': birthday.value.replace(/\./g, '-'),
-        'patnr': patNr.value
+        'patnr': patNr.value,
+        'id': appointmentId.value
       },
       {
         headers: {
           "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8"
         }
       }).then(function(response) {
-      console.log(response);
       nextBtnLoading.value = false;
       if(response.data === 1) window.location.href = "https://www.zahnarzt-eferding.at/bitte-bestaetigen-sie-ihren-termin/";
     }).catch(function (error) {
@@ -196,14 +198,22 @@ const validateCurrentStep = async () => {
   }
   if (steps.value === 0 && isStammkundenMode.value) {
     nextBtnLoading.value = true;
-    axios.post("https://www.zahnarzt-eferding.at/wp-admin/admin-ajax.php",
-      {
+    let data = {};
+    if (svnrLogin.value) {
+      data = {
+        'action': 'checkStammkunde',
+        'svnr': svnr.value
+      };
+    } else {
+      data = {
         'action': 'checkStammkunde',
         'erst-firstname':  name.value,
         'erst-lastname': lastName.value,
         'erst-geburtsdatum': birthday.value
-
-      },
+      };
+    }
+    axios.post("https://www.zahnarzt-eferding.at/wp-admin/admin-ajax.php",
+      data,
       {
         headers: {
           "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8"
@@ -213,6 +223,12 @@ const validateCurrentStep = async () => {
       emailAddress.value = email;
       patNr.value = patnr;
       telNr.value = strtelnr;
+      if (svnrLogin.value) {
+        const { nn, vn, geb } = response.data;
+        name.value = vn;
+        lastName.value = nn;
+        birthday.value = geb;
+      }
       axios.post("https://www.zahnarzt-eferding.at/wp-admin/admin-ajax.php",
         {
           'action': 'checkEmailPossible',
@@ -222,16 +238,14 @@ const validateCurrentStep = async () => {
             "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8"
           }
         }).then(function(response) {
-        const { emailPossible } = response.data;
         if(patnr !== null && patnr !== undefined && patnr !== "undefined"){
           nextBtnLoading.value = false;
           steps.value++;
-        } else if (emailPossible === "1") {
+        } else if (response.data === "1") {
           window.location.href = "https://www.zahnarzt-eferding.at/kein-stammkunde-2";
           return;
         } else {
-
-          window.location.href = "https://www.zahnarzt-eferding.at/kein-stammkunde/?vorname=" + name.value + "&nachname=" + lastName.value + "&geburtsdatum=" + birthday.value;
+          window.location.href = "https://www.zahnarzt-eferding.at/kein-stammkunde/?vorname=" + name.value !== 'null' ? name.value : '' + "&nachname=" + lastName.value !== 'null' ? lastName.value : '' + "&geburtsdatum=" + birthday.value !== 'null' ? birthday.value : '';
         }
       }).catch(function (error) {
         console.error(error);
@@ -244,19 +258,19 @@ const validateCurrentStep = async () => {
     steps.value++;
   }
   if ((isStammkundenMode.value && steps.value === 2) || (!isStammkundenMode.value && steps.value === 1)) {
-    console.log("reset caendar");
     calendar.value?.setNewDates();
   }
 }
 const stepBack = () => {
   steps.value--;
-  if ((isStammkundenMode.value && steps.value === 1) || (!isStammkundenMode.value && steps.value === 0)) {
+  if ((isStammkundenMode.value && (steps.value === 1 || steps.value === 2)) || (!isStammkundenMode.value && (steps.value === 0|| steps.value === 1))) {
     appointmentTypeNr.value = '0';
     stepTwoValid.value = false;
     selectedTime.value = '';
     stepThreeValid.value = false;
     selectedDate.value = '';
     stepFourValid.value = false;
+
   }
   // if ((isStammkundenMode.value && steps.value === 2) || (!isStammkundenMode.value && steps.value === 1)) {
   //   console.log("reset steps: ", steps.value);
@@ -271,472 +285,7 @@ const stepBack = () => {
   .v-stepper-header {
     border-bottom: 1px solid rgba(0,0,0,0.1);
     box-shadow: none;
-  }0000000000
-  ,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+  }
   .stepper {
     border: 1px solid rgba(0,0,0,0.1);
   }

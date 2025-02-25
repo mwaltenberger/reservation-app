@@ -1,6 +1,7 @@
 <template>
   <v-container>
     <v-row class="appointment-row">
+      <p>Eingeloggt als: <strong style="color: #232323">{{ name }} {{lastName}}</strong></p>
       <appointment
         v-for="item in items" v-bind:key="item.WebTArtNr"
         :current-appointment-type-nr="item.WebTArtNr"
@@ -22,12 +23,13 @@ import {storeToRefs} from "pinia";
 import axios from "axios";
 import { AppointmentDto } from "@/types";
 
-const { appointmentTypeNr, stepTwoValid, raumNr, responseDates, selectedAppointmentName, steps } = storeToRefs(useAppStore());
+const { appointmentTypeNr, stepTwoValid, raumNr, responseDates, selectedAppointmentName, name, lastName } = storeToRefs(useAppStore());
 
 const items: Ref<AppointmentDto[]> = ref([]);
 
 const emit = defineEmits<{
   (e: 'set-loading', value: boolean): void;
+  (e: 'validate-step'): void;
 }>();
 
 const imageLink = (description: string) => {
@@ -80,7 +82,7 @@ const setTArtNr = (currentNr: string, currentName: string) => {
     }).then(function(response) {
     responseDates.value = response.data;
     emit('set-loading', false);
-    steps.value++;
+    emit('validate-step');
   }).catch(function (error) {
     console.error(error);
     emit('set-loading', false);

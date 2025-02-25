@@ -1,10 +1,11 @@
 <template>
   <v-card flat class="stammpatient-wrapper">
-    <v-card-title>Zugang für Stammpatienten:innen</v-card-title>
-    <v-card-subtitle class="mb-3">Um zu überprüfen ob Sie in unserem System als Stammpatient:in vermerkt sind bitten wir
+    <v-card-title class="d-flex">Zugang für Stammpatienten:innen</v-card-title>
+    <v-card-subtitle>Um zu überprüfen ob Sie in unserem System als Stammpatient:in vermerkt sind bitten wir
       Sie um, folgende Informationen
     </v-card-subtitle>
-    <v-form v-model="isValid">
+    <v-switch color="primary" v-model="svnrLogin" label="Mit SVNR anmelden" class="svnr-switch"></v-switch>
+    <v-form v-if="!svnrLogin" v-model="isValid" ref="loginForm">
       <v-text-field
         v-model="state.name"
         :error-messages="v$.lastName.$error ? 'Bitte geben Sie Ihren Vornamen an.' : ''"
@@ -60,20 +61,44 @@
         @change="v$.checkbox.$touch"
       ></v-checkbox>
     </v-form>
+    <v-form v-else v-model="isValid" ref="svnrLoginForm">
+      <v-text-field
+        v-model="stateSvnr.svnr"
+        :error-messages="vSvnr$.svnr.$error ? 'Bitte geben Sie eine gültige Sozialversicherungsnummer an.' : ''"
+        label="Sozialversicherungsnummer *"
+        required
+        v-maska="'##########'"
+        placeholder="__________"
+        data-maska-eager
+        @blur="vSvnr$.svnr.$touch"
+        @input="vSvnr$.svnr.$touch; svnr = stateSvnr.svnr"
+      ></v-text-field>
+      <v-checkbox
+        v-model="stateSvnr.checkbox"
+        :error-messages="vSvnr$.checkbox.$error ? 'Bitte aktzeptieren Sie die DSGVO-Bestimmunge.' : ''"
+        label="* Hiermit willige ich den auf dieser Website geltenden DSGVO-Bestimmungen ein."
+        required
+        @blur="vSvnr$.checkbox.$touch"
+        @change="vSvnr$.checkbox.$touch"
+      ></v-checkbox>
+    </v-form>
   </v-card>
 </template>
 
 <script lang="ts" setup>
 import {ref, reactive, watch} from 'vue'
+import {VForm} from "vuetify/components";
 import {useVuelidate} from '@vuelidate/core'
-import {required} from '@vuelidate/validators'
+import {required, minLength} from '@vuelidate/validators'
 import {useAppStore} from "../../stores/app";
 import {storeToRefs} from "pinia";
 import {vMaska} from "maska/vue"
 
-const {name, lastName, birthday, stepOneValid} = storeToRefs(useAppStore());
+const {name, lastName, birthday, stepOneValid, svnrLogin, svnr} = storeToRefs(useAppStore());
 
 const isValid = ref(false);
+const loginForm = ref<InstanceType<typeof VForm>>();
+const svnrLoginForm = ref<InstanceType<typeof VForm>>();
 
 const initialState = {
   name: '',
@@ -86,6 +111,14 @@ const state = reactive({
   ...initialState,
 });
 
+const initialStateSvnr = {
+  svnr: '',
+  checkbox: null,
+};
+
+const stateSvnr = reactive({
+  ...initialStateSvnr,
+});
 
 const rules = {
   name: {required},
@@ -94,18 +127,34 @@ const rules = {
   checkbox: {required},
 };
 
+const rulesSVNR = {
+  svnr: {required, minLength: minLength(10)},
+  checkbox: {required},
+}
+
 const v$ = useVuelidate(rules, state);
+
+const vSvnr$ = useVuelidate(rulesSVNR, stateSvnr);
 
 const updateDatePickerDate = (date: any) => {
   const tmpDate = date.toLocaleDateString().split('.');
   if (tmpDate[0].length === 1) tmpDate[0] = `0${tmpDate[0]}`;
   if (tmpDate[1].length === 1) tmpDate[1] = `0${tmpDate[1]}`;
-  console.log(tmpDate.join('.'));
   state.birthDay = tmpDate.join('.');
 }
 
 watch(state, (newState) => {
-  stepOneValid.value = !!(newState.name !== '' && newState.lastName !== '' && newState.birthDay !== '' && newState.checkbox && isValid.value);
+  if(!svnrLogin.value) stepOneValid.value = !!(newState.name !== '' && newState.lastName !== '' && newState.birthDay !== '' && newState.checkbox && isValid.value);
+});
+
+watch(stateSvnr, (newState) =>{
+  if(svnrLogin.value) stepOneValid.value = !!(newState.svnr !== '' && newState.svnr.length === 10 && newState.checkbox);
+})
+
+watch(svnrLogin, () => {
+  stepOneValid.value = false;
+  loginForm.value?.reset();
+  svnrLoginForm.value?.reset();
 })
 
 
@@ -117,4 +166,10 @@ watch(state, (newState) => {
 .stammpatient-wrapper {
   background: none;
 }
+
+.svnr-switch {
+  padding: .5rem 1rem;
+  max-height: 56px;
+}
+
 </style>

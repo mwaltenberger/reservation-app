@@ -6,7 +6,7 @@
       label="Vorname *"
       required
       @blur="v$.name.$touch"
-      @input="v$.name.$touch"
+      @update:model-value="v$.name.$touch"
       readonly
     ></v-text-field>
     <v-text-field
@@ -15,7 +15,7 @@
       label="Nachname *"
       required
       @blur="v$.lastName.$touch"
-      @input="v$.lastName.$touch"
+      @update:model-value="v$.lastName.$touch"
       readonly
     ></v-text-field>
     <v-text-field
@@ -25,7 +25,7 @@
       label="Geburtsdatum *"
       required
       @blur="v$.birthDay.$touch"
-      @input="v$.birthDay.$touch"
+      @update:model-value="v$.birthDay.$touch"
       readonly
     ></v-text-field>
     <v-text-field
@@ -34,7 +34,7 @@
       label="Telefon Nr. *"
       required
       @blur="v$.phone.$touch"
-      @input="v$.phone.$touch; telNr = $event = telNr"
+      @update:model-value="v$.phone.$touch; telNr = $event"
     ></v-text-field>
     <v-text-field
       v-model="state.email"
@@ -42,17 +42,17 @@
       label="Email *"
       required
       @blur="v$.email.$touch"
-      @input="v$.email.$touch; emailAddress = $event"
+      @update:model-value="v$.email.$touch; emailAddress = $event"
     ></v-text-field>
     <v-text-field
       v-model="state.note"
       label="Bemerkung "
-      required
       @blur="v$.note.$touch"
-      @input="v$.note.$touch; notice = $event"
+      @update:model-value="v$.note.$touch; notice = $event"
     ></v-text-field>
 
     <v-checkbox
+      v-if="!isStammkundenMode"
       v-model="state.checkbox"
       :error-messages="v$.checkbox.$error ? 'Bitte aktzeptieren Sie die DSGVO-Bestimmunge.' : ''"
       label="* Hiermit willige ich den auf dieser Website geltenden DSGVO-Bestimmungen ein."
@@ -64,14 +64,14 @@
 </template>
 
 <script lang="ts" setup>
-import {reactive, watch, ref} from 'vue'
+import {reactive, watch, ref, computed, onMounted } from 'vue'
 import { useVuelidate } from '@vuelidate/core'
 import { required, email, numeric } from '@vuelidate/validators'
 import {useAppStore} from "../../stores/app";
 import {storeToRefs} from "pinia";
 import {VForm} from "vuetify/components";
 
-const { name, lastName, birthday, stepFiveValid, emailAddress, telNr, notice } = storeToRefs(useAppStore());
+const { name, lastName, birthday, stepFiveValid, emailAddress, telNr, notice, isStammkundenMode } = storeToRefs(useAppStore());
 
 const initialState = {
   name: name.value,
@@ -89,20 +89,60 @@ const state = reactive({
 
 const isValid = ref(false);
 
-const rules = {
-  name: { required },
-  lastName: { required },
-  birthDay: { required },
-  note: { },
-  email: { required, email },
-  phone: { required, numeric },
-  checkbox: { required },
-};
+const stammkundenRules = computed(() => {
+  return isStammkundenMode ? {
+    name: { required },
+    lastName: { required },
+    birthDay: { required },
+    note: { },
+    email: { required, email },
+    phone: { required, numeric },
+    checkbox: { },
+  } : {
+    name: { required },
+    lastName: { required },
+    birthDay: { required },
+    note: { },
+    email: { required, email },
+    phone: { required, numeric },
+    checkbox: { required },
+  };
+});
+
+const rules = stammkundenRules;
+
+onMounted(() => {
+  validateFinalStep(state);
+})
 
 const v$ = useVuelidate(rules, state);
+const validateFinalStep = (newState: any) => {
+  console.log("validate with: ", newState);
+  console.log(isStammkundenMode.value);
+  if (isStammkundenMode.value) {
+    stepFiveValid.value = (
+      newState.name !== '' &&
+      newState.lastName !== '' &&
+      newState.birthDay !== '' &&
+      newState.email !== '' &&
+      newState.phone !== ''
+    );
+  } else {
+    stepFiveValid.value = (
+      newState.name !== '' &&
+      newState.lastName !== '' &&
+      newState.birthDay !== '' &&
+      newState.email !== '' &&
+      newState.phone !== '' &&
+      newState.checkbox &&
+      isValid.value
+    );
+  }
+};
 
 watch(state, (newState) => {
-  stepFiveValid.value = !!(newState.name !== '' && newState.lastName !== '' && newState.birthDay !== ''&& newState.email !== '' && newState.phone !== '' && newState.checkbox && isValid.value);
+  console.log("hier mit state in watcher: ", newState);
+  validateFinalStep(newState);
 })
-,
 </script>
+

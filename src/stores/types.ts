@@ -1,5 +1,10 @@
 
+interface TimeSlot {
+  id: number,
+  value: string
+}
 export interface AppState {
+  isStammkundenMode: boolean,
   steps: number,
   selectedDate: string,
   selectedAppointmentType: string,
@@ -17,15 +22,19 @@ export interface AppState {
   stepThreeValid: boolean,
   stepFourValid: boolean,
   stepFiveValid: boolean,
+  svnrLogin: boolean,
+  svnr: string,
   appointmentTypeNr: string,
   raumNr: string,
   responseDates: unknown[],
-  timeSlots: unknown[],
+  timeSlots: TimeSlot[],
   timeSlotsLoading: boolean,
+  appointmentId: number,
 }
 
 export function createAppState(): AppState {
   return {
+    isStammkundenMode: false,
     steps: 0,
     selectedDate: '',
     selectedAppointmentType: '',
@@ -38,6 +47,8 @@ export function createAppState(): AppState {
     emailAddress: '',
     notice: '',
     patNr: '',
+    svnrLogin: false,
+    svnr: '',
     stepOneValid: false,
     stepTwoValid: false,
     stepThreeValid: false,
@@ -47,6 +58,7 @@ export function createAppState(): AppState {
     raumNr: '',
     responseDates: [],
     timeSlots: [],
-    timeSlotsLoading: true
+    timeSlotsLoading: true,
+    appointmentId: 0
   };
 }

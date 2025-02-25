@@ -65,11 +65,14 @@ const updateDatePickerDate = (event: Date) => {
 }
 
 const setNewDates = () => {
+  console.log("set new dates: ", allowedDates.value);
   datePickerDate.value = new Date(allowedDates.value[0]);
   updateDatePickerDate(datePickerDate.value);
 }
 
+
 onMounted(() => {
+  console.log("onmoutned: ", allowedDates.value);
   if (allowedDates.value[0]) updateDatePickerDate(new Date(allowedDates.value[0]));
 })
 defineExpose({setNewDates});
